@@ -1,42 +1,27 @@
-// Copyright (c) FIRST and other WPILib contributors.
-// Open Source Software; you can modify and/or share it under the terms of
-// the WPILib BSD license file in the root directory of this project.
-
 package frc.robot.commands;
 
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.wpilibj.drive.MecanumDrive;
 import edu.wpi.first.wpilibj2.command.Command;
-import frc.robot.Robot;
 import frc.robot.subsystems.LimelightSubsystem;
 
-/** An example command that uses an example subsystem. */
-public class MoveToTarget extends Command
-{
-    @SuppressWarnings("unused")
+public class MoveToTarget extends Command {
     private final LimelightSubsystem limelightSubsystem;
     private final MecanumDrive robotDrive;
     private final PIDController aimPIDController;
     private final PIDController rangePIDController;
 
-    /**
-     * Creates a new ExampleCommand.
-     *
-     * @param subsystem
-     *            The subsystem used by this command.
-     */
-    public MoveToTarget(LimelightSubsystem subsystem, MecanumDrive robotDrive)
-    {
+    private static final double MAX_SPEED = 0.3; // Maximum speed
+    private static final double MAX_ROTATION = 0.3; // Maximum rotation speed
+    private static final double DEADBAND = 0.05; // Deadband for small errors
+
+    public MoveToTarget(LimelightSubsystem subsystem, MecanumDrive robotDrive) {
         this.limelightSubsystem = subsystem;
         this.robotDrive = robotDrive;
-        // Use addRequirements() here to declare subsystem dependencies.
         addRequirements(subsystem);
 
-        // Initialize PID controllers
-        // P = 0.05
-        // I = 0.01
-        // D = 0.02
-        aimPIDController = new PIDController(0.05, 0.02, 0.025);
+        // Initialize PID controllers with adjusted gains
+        aimPIDController = new PIDController(0.03, 0.01, 0.02);
         rangePIDController = new PIDController(0.1, 0.01, 0);
 
         // Set tolerances if needed
@@ -44,50 +29,40 @@ public class MoveToTarget extends Command
         rangePIDController.setTolerance(1.0);
     }
 
-    // Called when the command is initially scheduled.
     @Override
-    public void initialize()
-    {
-    }
-
-    // Called every time the scheduler runs while the command is scheduled.
-    @Override
-    public void execute()
-
-    {
-        if (limelightSubsystem.hasTarget())
-        {
+    public void execute() {
+        if (limelightSubsystem.hasTarget()) {
             double rot = aimPIDController.calculate(limelightSubsystem.getX(), 0);
-            double strafe = rangePIDController.calculate(limelightSubsystem.getA(), LimelightSubsystem.targetArea);
-
-            System.out.println(rot);
             double forward = rangePIDController.calculate(limelightSubsystem.getA(), LimelightSubsystem.targetArea);
-            // double strafe = 0.30;
-            if (rot > 0) {
-                strafe *= -1.0;
+
+            // Apply deadband
+            if (Math.abs(rot) < DEADBAND) {
+                rot = 0;
             }
-            // strafe *= (limelightSubsystem.getX() < 0) ? -1.0 : 1.0;
-            System.out.println("rot" + rot);
-            System.out.println("strafe" + strafe);
-            robotDrive.driveCartesian(forward * -0.15, strafe * 0.15, rot * 0.3); // Adjust driving logic as needed
-        }
-        else
-        {
+            if (Math.abs(forward) < DEADBAND) {
+                forward = 0;
+            }
+
+            // Limit the maximum speed and rotation
+            rot = Math.max(Math.min(rot, MAX_ROTATION), -MAX_ROTATION);
+            forward = Math.max(Math.min(forward, MAX_SPEED), -MAX_SPEED);
+
+            // Adjust strafing based on rotation direction
+            double strafe = forward * (rot > 0 ? -1.0 : 1.0);
+
+            robotDrive.driveCartesian(forward * -0.15, strafe * 0.15, rot * 0.3);
+        } else {
             robotDrive.driveCartesian(0, 0, 0); // Stop the robot if no target is found
         }
     }
 
-    // Called once the command ends or is interrupted.
     @Override
-    public void end(boolean interrupted)
-    {
+    public void end(boolean interrupted) {
         robotDrive.driveCartesian(0, 0, 0); // Stop the robot
     }
 
-    // Returns true when the command should end.
     @Override
-    public boolean isFinished()
-    {
+    public boolean isFinished() {
         return false;
     }
 }
